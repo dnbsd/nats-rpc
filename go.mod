@@ -1,4 +1,4 @@
-module nats-rpc
+module github.com/dnbsd/nats-rpc
 
 go 1.18
 
