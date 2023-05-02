@@ -1,4 +1,4 @@
-package gonatsrpc
+package natsrpc
 
 type Receiver struct {
 	Name string

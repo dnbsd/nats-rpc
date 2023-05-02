@@ -1,4 +1,4 @@
-package gonatsrpc
+package natsrpc
 
 import (
 	"errors"
