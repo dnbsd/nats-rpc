@@ -36,7 +36,7 @@ func (s *Server) StartWithContext(ctx context.Context) error {
 		reqCh := make(chan *nats.Msg, chCapacity)
 		respCh := make(chan *nats.Msg, chCapacity)
 
-		err := p.consumer.Subscribe(p.subject, reqCh)
+		err := p.consumer.Subscribe(p.subject, p.group, reqCh)
 		if err != nil {
 			return err
 		}
@@ -58,9 +58,10 @@ func (s *Server) StartWithContext(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) Register(subject string, service Service) {
+func (s *Server) Register(subject, group string, service Service) {
 	p := pipeline{
 		subject:   subject,
+		group:     group,
 		consumer:  newConsumer(s.nc),
 		publisher: newPublisher(s.nc),
 		service:   service,

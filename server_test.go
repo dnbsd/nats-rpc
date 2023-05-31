@@ -55,7 +55,7 @@ func TestServer_Service(t *testing.T) {
 	const rpcSubject = "test_service.rpc"
 	nc := newNatsServerAndConnection(t)
 	s := NewServer(nc)
-	s.Register(rpcSubject, &echoService{})
+	s.Register(rpcSubject, "", &echoService{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,7 +71,81 @@ func TestServer_Service(t *testing.T) {
 		Reply:   nats.NewInbox(),
 		Data:    []byte("hello world!"),
 	}
-	respMsg, err := nc.RequestMsg(reqMsg, 5*time.Second)
+	respMsg, err := nc.RequestMsg(reqMsg, 2*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, reqMsg.Data, respMsg.Data)
+}
+
+func TestServer_Services(t *testing.T) {
+	const rpcSubject = "test_service.rpc"
+	nc := newNatsServerAndConnection(t)
+	s := NewServer(nc)
+	s.Register(rpcSubject, "", &echoService{})
+	s.Register(rpcSubject, "", &echoService{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		err := s.StartWithContext(ctx)
+		assert.NoError(t, err)
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	reply := nats.NewInbox()
+	subscription, err := nc.SubscribeSync(reply)
+	defer subscription.Drain()
+	assert.NoError(t, err)
+
+	reqMsg := &nats.Msg{
+		Subject: rpcSubject,
+		Reply:   reply,
+		Data:    []byte("hello world!"),
+	}
+	err = nc.PublishMsg(reqMsg)
+	assert.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		respMsg, err := subscription.NextMsg(2 * time.Second)
+		assert.NoError(t, err)
+		assert.Equal(t, reqMsg.Data, respMsg.Data)
+	}
+}
+
+func TestServer_ServicesGroup(t *testing.T) {
+	const rpcSubject = "test_service.rpc"
+	const groupName = "test_group"
+	nc := newNatsServerAndConnection(t)
+	s := NewServer(nc)
+	s.Register(rpcSubject, groupName, &echoService{})
+	s.Register(rpcSubject, groupName, &echoService{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		err := s.StartWithContext(ctx)
+		assert.NoError(t, err)
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	reply := nats.NewInbox()
+	subscription, err := nc.SubscribeSync(reply)
+	defer subscription.Drain()
+	assert.NoError(t, err)
+
+	reqMsg := &nats.Msg{
+		Subject: rpcSubject,
+		Reply:   reply,
+		Data:    []byte("hello world!"),
+	}
+	err = nc.PublishMsg(reqMsg)
+	assert.NoError(t, err)
+
+	respMsg, err := subscription.NextMsg(2 * time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, reqMsg.Data, respMsg.Data)
+
+	_, err = subscription.NextMsg(2 * time.Second)
+	assert.Error(t, err)
 }

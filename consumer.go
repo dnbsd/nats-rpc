@@ -16,12 +16,12 @@ func newConsumer(nc *nats.Conn) *consumer {
 	}
 }
 
-func (s *consumer) Subscribe(subject string, outputCh chan *nats.Msg) error {
+func (s *consumer) Subscribe(subject, group string, outputCh chan *nats.Msg) error {
 	if s.subscription != nil {
 		return errors.New("already subscribed")
 	}
 
-	subscription, err := s.nc.ChanSubscribe(subject, outputCh)
+	subscription, err := s.nc.ChanQueueSubscribe(subject, group, outputCh)
 	if err != nil {
 		return err
 	}
