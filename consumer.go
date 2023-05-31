@@ -35,7 +35,7 @@ func (s *consumer) Close() error {
 		return nil
 	}
 
-	err := s.subscription.Unsubscribe()
+	err := s.subscription.Drain()
 	if err != nil {
 		return err
 	}
