@@ -9,45 +9,44 @@ import (
 
 type Server struct {
 	nc        *nats.Conn
-	consumer  *consumer
-	publisher *publisher
-	services  map[string]Service
+	pipelines []pipeline
 }
 
 func NewServer(nc *nats.Conn) *Server {
 	return &Server{
-		nc:        nc,
-		consumer:  newConsumer(nc),
-		publisher: newPublisher(nc),
-		services:  make(map[string]Service),
+		nc: nc,
 	}
 }
 
 func (s *Server) StartWithContext(ctx context.Context) error {
-	defer s.consumer.Close()
-
-	if len(s.services) == 0 {
+	if len(s.pipelines) == 0 {
 		return errors.New("cannot start the server: no services registered")
 	}
 
+	defer func() {
+		for _, p := range s.pipelines {
+			_ = p.consumer.Close()
+		}
+	}()
+
 	group, groupCtx := errgroup.WithContext(ctx)
-	for subject, service := range s.services {
+	for _, p := range s.pipelines {
 		// TODO: set capacity from the service!
 		chCapacity := 1024
 		reqCh := make(chan *nats.Msg, chCapacity)
 		respCh := make(chan *nats.Msg, chCapacity)
 
-		err := s.consumer.Subscribe(subject, reqCh)
+		err := p.consumer.Subscribe(p.subject, reqCh)
 		if err != nil {
 			return err
 		}
 
 		group.Go(func() error {
-			return service.Start(groupCtx, reqCh, respCh)
+			return p.service.Start(groupCtx, reqCh, respCh)
 		})
 
 		group.Go(func() error {
-			return s.publisher.Start(groupCtx, respCh)
+			return p.publisher.Start(groupCtx, respCh)
 		})
 	}
 
@@ -60,5 +59,11 @@ func (s *Server) StartWithContext(ctx context.Context) error {
 }
 
 func (s *Server) Register(subject string, service Service) {
-	s.services[subject] = service
+	p := pipeline{
+		subject:   subject,
+		consumer:  newConsumer(s.nc),
+		publisher: newPublisher(s.nc),
+		service:   service,
+	}
+	s.pipelines = append(s.pipelines, p)
 }
