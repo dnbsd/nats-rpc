@@ -18,6 +18,7 @@ func NewServer(nc *nats.Conn) *Server {
 	}
 }
 
+// StartWithContext starts a new server and blocks until context is closed or an error occurs.
 func (s *Server) StartWithContext(ctx context.Context) error {
 	if len(s.pipelines) == 0 {
 		return errors.New("cannot start the server: no services registered")
@@ -58,6 +59,9 @@ func (s *Server) StartWithContext(ctx context.Context) error {
 	return nil
 }
 
+// Register registers a service with a NATS subject. Many services can be registered to the same subject, all services
+// will receive their copy of the message. If group is specified, only of services subscribed to the same subject with
+// the same group nam will receive a message.
 func (s *Server) Register(subject, group string, service Service) {
 	p := pipeline{
 		subject:   subject,
